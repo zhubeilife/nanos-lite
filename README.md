@@ -13,3 +13,28 @@ It is a two-tasking operating system with the following features
 * 9 system calls
   * open, read, write, lseek, close, gettimeofday, brk, exit, execve
 * scheduler with two tasks
+
+```txt
+nanos-lite
+├── include
+│   ├── common.h
+│   ├── debug.h
+│   ├── fs.h
+│   ├── memory.h
+│   └── proc.h
+├── Makefile
+├── README.md
+├── resources
+│   └── logo.txt    # Project-N logo文本
+└── src
+    ├── device.c    # 设备抽象
+    ├── fs.c        # 文件系统
+    ├── irq.c       # 中断异常处理
+    ├── loader.c    # 加载器
+    ├── main.c
+    ├── mm.c        # 存储管理
+    ├── proc.c      # 进程调度
+    ├── ramdisk.c   # ramdisk驱动程序
+    ├── resources.S # ramdisk内容和Project-N logo
+    └── syscall.c   # 系统调用处理
+```
