@@ -32,17 +32,34 @@ void do_syscall(Context *c) {
 
   switch (a[0]) {
     case SYS_exit : {
-      printf("nanolite syscall: SYS_exit\n");
+      Log("[strace] syscall: SYS_exit, input:%d, output:%d\n", c->GPR2, c->GPRx);
       halt(c->GPR2);
       c->GPRx = 0;
       break;
     }
     case SYS_yield: {
-      printf("nanolite syscall: SYS_yield\n");
+      Log("[strace] syscall: SYS_yield, input:N/A, output:%d\n", c->GPRx);
       yield();
       c->GPRx = 0;
       break;
     }
-    default: panic("nanolite Unhandled syscall ID = %d", a[0]);
+    case SYS_write: {
+      // Log("[strace] syscall: SYS_wirte\n");
+      int fd = c->GPR2;
+      if (fd == 1 || fd == 2) {
+        // fd是1或2(分别代表stdout和stderr)
+        char* buf = (char*)c->GPR3;
+        size_t count = c->GPR4;
+        for (int i = 0; i < count; i++) {
+          putch(buf[i]);
+        }
+        c->GPRx = count;
+      }
+      else {
+        panic("unsupported syscall sys_write with fd: %d", fd);
+      }
+      break;
+    }
+    default: panic("[strace] Unhandled syscall ID = %d", a[0]);
   }
 }

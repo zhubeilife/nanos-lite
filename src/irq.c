@@ -5,11 +5,11 @@ void do_syscall(Context *c);
 static Context* do_event(Event e, Context* c) {
   switch (e.event) {
     case EVENT_YIELD: {
-      printf("Nano lite: EVENT_YIELD\n");
+      Log("Nano lite: EVENT_YIELD\n");
       break;
     }
     case EVENT_SYSCALL: {
-      printf("Nano lite: EVENT_SYSCALL\n");
+      // Log("Nano lite: EVENT_SYSCALL\n");
       do_syscall(c);
       break;
     }
