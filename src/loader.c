@@ -1,5 +1,6 @@
 #include <proc.h>
 #include <elf.h>
+#include <fs.h>
 
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
@@ -46,6 +47,11 @@ void read_elf_header(Elf_Ehdr *elf_header)
   ramdisk_read(elf_header, 0, sizeof(Elf_Ehdr));
 }
 
+void read_elf_header_fd(Elf_Ehdr *elf_header, int fd)
+{
+  fs_read(fd, elf_header, sizeof(Elf_Ehdr));
+}
+
 void check_elf_header(Elf_Ehdr *elf_header)
 {
   // check magic number
@@ -66,6 +72,12 @@ void check_elf_header(Elf_Ehdr *elf_header)
 void read_segment_header_table(Elf_Ehdr *elf_header, Elf_Phdr ph_table[])
 {
   ramdisk_read(ph_table, elf_header->e_phoff, sizeof(Elf_Phdr) * elf_header->e_phnum);
+}
+
+void read_segment_header_table_fd(Elf_Ehdr *elf_header, Elf_Phdr ph_table[], size_t fd)
+{
+  fs_lseek(fd, elf_header->e_phoff, SEEK_SET);
+  fs_read(fd, ph_table, sizeof(Elf_Phdr) * elf_header->e_phnum);
 }
 
 void print_segment_headers(Elf_Ehdr *elf_header, Elf_Phdr ph_table[])
@@ -112,24 +124,59 @@ void load_program(Elf_Ehdr *elf_header, Elf_Phdr ph_table[]) {
   }
 }
 
+void load_program_fd(Elf_Ehdr *elf_header, Elf_Phdr ph_table[], int fd) {
+  for(uint32_t i = 0; i < elf_header->e_phnum; i++) {
+    if (ph_table[i].p_type == PT_LOAD) {
+      // [VirtAddr, VirtAddr + MemSiz)
+      fs_lseek(fd, ph_table[i].p_offset, SEEK_SET);
+      fs_read(fd, (void*)ph_table[i].p_vaddr, ph_table[i].p_filesz);
+      // [VirtAddr + FileSiz, VirtAddr + MemSiz)
+      memset((void*)(ph_table[i].p_vaddr + ph_table[i].p_filesz) , 0, ph_table[i].p_memsz - ph_table[i].p_filesz);
+    }
+  }
+}
+
 static uintptr_t loader(PCB *pcb, const char *filename) {
+
+  // -1- open the file
+  int fd = fs_open(filename, 0, 0);
+  if (fd < 0) {
+    panic("could not open file %s", filename);
+  }
+  // 0- read the elf header
+  Elf_Ehdr elf_header;
+  read_elf_header_fd(&elf_header, fd);
+  // 1- check the elf header
+  check_elf_header(&elf_header);
+  // 2- read segment table
+  /* section-header table is variable size */
+  Elf_Phdr* ph_tbl = malloc(sizeof(Elf_Phdr) * elf_header.e_phnum);
+  read_segment_header_table_fd(&elf_header, ph_tbl, fd);
+  print_segment_headers(&elf_header, ph_tbl);
+  // 3- load to memory
+  load_program_fd(&elf_header, ph_tbl, fd);
+  return elf_header.e_entry;
+
+/*  PA3.2 directly load one elf file
   // 0- read the elf header
   Elf_Ehdr elf_header;
   read_elf_header(&elf_header);
   // 1- check the elf header
   check_elf_header(&elf_header);
   // 2- read segment table
-  /* section-header table is variable size */
+  // section-header table is variable size//
   Elf_Phdr* ph_tbl = malloc(sizeof(Elf_Phdr) * elf_header.e_phnum);
   read_segment_header_table(&elf_header, ph_tbl);
   print_segment_headers(&elf_header, ph_tbl);
   // 3- load to memory
   load_program(&elf_header, ph_tbl);
   return elf_header.e_entry;
+ */
 }
 
 void naive_uload(PCB *pcb, const char *filename) {
   uintptr_t entry = loader(pcb, filename);
+  // TODO printf not support %p for now
   Log("Jump to entry = %p", entry);
   ((void(*)())entry) ();
 }
