@@ -32,8 +32,19 @@ size_t serial_write(const void *buf, size_t offset, size_t len) {
   return len;
 }
 
+#define NAMEINIT(key)  [ AM_KEY_##key ] = #key,
+static const char *names[] = {
+  AM_KEYS(NAMEINIT)
+};
+
 size_t events_read(void *buf, size_t offset, size_t len) {
-  return 0;
+  AM_INPUT_KEYBRD_T ev = io_read(AM_INPUT_KEYBRD);
+  if (ev.keycode == AM_KEY_NONE) {
+    return 0;
+  }
+  // TODO: should use snprintf at klibs to limit the lens
+  printf("%s %s\n", ev.keydown ? "kd" : "ku", names[ev.keycode]);
+  return sprintf(buf, "%s %s\n", ev.keydown ? "kd" : "ku", names[ev.keycode]);
 }
 
 size_t dispinfo_read(void *buf, size_t offset, size_t len) {
