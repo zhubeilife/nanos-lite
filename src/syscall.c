@@ -32,23 +32,9 @@ void do_syscall(Context *c) {
     case SYS_write: {
       STRACE_LOG("[strace] syscall: SYS_wirte\n");
       int fd = c->GPR2;
-      if (fd == 0) {
-        c->GPRx = 0;
-      }
-      else if (fd == 1 || fd == 2) {
-        // fd是1或2(分别代表stdout和stderr)
-        char* buf = (char*)c->GPR3;
-        size_t count = c->GPR4;
-        for (int i = 0; i < count; i++) {
-          putch(buf[i]);
-        }
-        c->GPRx = count;
-      }
-      else {
-        void* buf = (void*)c->GPR3;
-        size_t count = c->GPR4;
-        c->GPRx = fs_write(fd, buf, count);
-      }
+      void* buf = (void*)c->GPR3;
+      size_t count = c->GPR4;
+      c->GPRx = fs_write(fd, buf, count);
       break;
     }
     case SYS_open: {
