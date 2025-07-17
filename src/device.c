@@ -1,4 +1,5 @@
 #include <common.h>
+#include <sys/time.h>
 
 #if defined(MULTIPROGRAM) && !defined(TIME_SHARING)
 # define MULTIPROGRAM_YIELD() yield()
@@ -14,8 +15,21 @@ static const char *keyname[256] __attribute__((used)) = {
   AM_KEYS(NAME)
 };
 
-size_t serial_write(const void *buf, size_t offset, size_t len) {
+int get_am_uptime(struct timeval *tv) {
+  AM_TIMER_UPTIME_T uptime;
+  uint32_t sec, us;
+  uptime = io_read(AM_TIMER_UPTIME);
+  tv->tv_sec = uptime.us / 1000000;
+  tv->tv_usec = uptime.us % 1000000;
   return 0;
+}
+
+size_t serial_write(const void *buf, size_t offset, size_t len) {
+  char *str = (char *)buf;
+  for (int i = 0; i < len; i++) {
+    putch(str[i]);
+  }
+  return len;
 }
 
 size_t events_read(void *buf, size_t offset, size_t len) {

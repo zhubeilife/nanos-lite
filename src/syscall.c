@@ -1,7 +1,7 @@
 #include <common.h>
 #include "syscall.h"
 #include <fs.h>
-
+#include <sys/time.h>
 #include <stdlib.h>
 
 // TODO: it seems not get it from nemu
@@ -11,6 +11,8 @@
 #else
 #define STRACE_LOG(...)
 #endif
+
+int get_am_uptime(struct timeval *tv);
 
 void do_syscall(Context *c) {
   uintptr_t a[4];
@@ -68,6 +70,11 @@ void do_syscall(Context *c) {
       intptr_t addr = c->GPR1;
       STRACE_LOG("[strace] syscall: SYS_brk, input:%d, output:%d\n", addr,c->GPRx);
       c->GPRx = 0;
+      break;
+    }
+    case SYS_gettimeofday: {
+      struct timeval *tv = (struct timeval *)c->GPR2;
+      c->GPRx = get_am_uptime(tv);
       break;
     }
     default: panic("[strace] Unhandled syscall ID = %d", a[0]);
