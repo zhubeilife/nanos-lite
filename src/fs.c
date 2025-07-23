@@ -54,7 +54,14 @@ static Finfo file_table[] __attribute__((used)) = {
 #define FILE_NUMS sizeof(file_table) / sizeof(Finfo)
 
 void init_fs() {
-  // TODO: initialize the size of /dev/fb
+  int fb = fs_open("/dev/fb", 0, 0);
+  if (fb < 0) {
+    panic("failed to open /dev/fb");
+  }
+  AM_GPU_CONFIG_T t = io_read(AM_GPU_CONFIG);
+  file_table[fb].size = t.width * t.height;
+  file_table[fb].disk_offset = 0;
+  file_table[fb].open_offset = 0;
 }
 
 // 为了简化实现, 我们允许所有用户程序都可以对所有已存在的文件进行读写, 这样以后, 我们在实现fs_open()的时候就可以忽略flags和mode了.

@@ -15,6 +15,8 @@ static const char *keyname[256] __attribute__((used)) = {
   AM_KEYS(NAME)
 };
 
+static int screen_w = 0, screen_h = 0;
+
 int get_am_uptime(struct timeval *tv) {
   AM_TIMER_UPTIME_T uptime;
   uint32_t sec, us;
@@ -46,12 +48,23 @@ size_t dispinfo_read(void *buf, size_t offset, size_t len) {
   AM_GPU_CONFIG_T t = io_read(AM_GPU_CONFIG);
 
   // TODO: should use snprintf at klibs to limit the lens
+  screen_w = t.width;
+  screen_h = t.height;
   size_t count = sprintf(buf, "WIDTH: %d \nHEIGHT: %d", t.width, t.height);
   return count;
 }
 
 size_t fb_write(const void *buf, size_t offset, size_t len) {
-  return 0;
+
+  // check the size?
+
+  // AM_DEVREG(11, GPU_FBDRAW, WR, int x, y; void *pixels; int w, h; bool sync);
+  // get x y from offset
+  int y = offset / screen_w;
+  int x = offset % screen_w;
+  uint32_t *pixels = (uint32_t*) buf;
+  io_write(AM_GPU_FBDRAW, x, y, pixels, len, 1, true);
+  return len;
 }
 
 void init_device() {

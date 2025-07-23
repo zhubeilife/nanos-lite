@@ -13,6 +13,7 @@
 #endif
 
 int get_am_uptime(struct timeval *tv);
+int mm_brk(uintptr_t brk);
 
 void do_syscall(Context *c) {
   uintptr_t a[4];
@@ -67,9 +68,8 @@ void do_syscall(Context *c) {
       break;
     }
     case SYS_brk: {
-      intptr_t addr = c->GPR1;
-      STRACE_LOG("[strace] syscall: SYS_brk, input:%d, output:%d\n", addr,c->GPRx);
-      c->GPRx = 0;
+      c->GPRx = mm_brk(c->GPR2);
+      STRACE_LOG("[strace] syscall: SYS_brk, input: %x, output: %x\n", c->GPR2, c->GPRx);
       break;
     }
     case SYS_gettimeofday: {
