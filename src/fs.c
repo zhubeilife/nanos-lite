@@ -59,7 +59,7 @@ void init_fs() {
     panic("failed to open /dev/fb");
   }
   AM_GPU_CONFIG_T t = io_read(AM_GPU_CONFIG);
-  file_table[fb].size = t.width * t.height;
+  file_table[fb].size = t.width * t.height * sizeof(uint32_t);
   file_table[fb].disk_offset = 0;
   file_table[fb].open_offset = 0;
 }
