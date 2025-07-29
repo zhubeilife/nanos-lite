@@ -41,7 +41,7 @@ size_t events_read(void *buf, size_t offset, size_t len) {
   }
   // TODO: should use snprintf at klibs to limit the lens
   char *p = (char *)buf;
-  return sprintf((char*)p, "%s %s\n", ev.keydown ? "kd" : "ku", keyname[ev.keycode]);
+  return sprintf((char*)p, "%s %s", ev.keydown ? "kd" : "ku", keyname[ev.keycode]);
 }
 
 size_t dispinfo_read(void *buf, size_t offset, size_t len) {
