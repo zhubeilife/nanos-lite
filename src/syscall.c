@@ -3,6 +3,7 @@
 #include <fs.h>
 #include <sys/time.h>
 #include <stdlib.h>
+#include <proc.h>
 
 // TODO: it seems not get it from nemu
 // #define CONFIG_STRACE
@@ -14,6 +15,8 @@
 
 int get_am_uptime(struct timeval *tv);
 int mm_brk(uintptr_t brk);
+void naive_uload(PCB *pcb, const char *filename);
+char* get_fd_name(int fd);
 
 void do_syscall(Context *c) {
   uintptr_t a[4];
@@ -33,7 +36,7 @@ void do_syscall(Context *c) {
       break;
     }
     case SYS_write: {
-      STRACE_LOG("[strace] syscall: SYS_wirte\n");
+      STRACE_LOG("[strace] syscall: SYS_wirte %d %d\n", fd, count);
       int fd = c->GPR2;
       void* buf = (void*)c->GPR3;
       size_t count = c->GPR4;
@@ -64,6 +67,7 @@ void do_syscall(Context *c) {
       int fd = c->GPR2;
       int offset = c->GPR3;
       int whence = c->GPR4;
+      STRACE_LOG("[strace] syscall: SYS_lseek %d %d\n", fd, offset);
       c->GPRx = fs_lseek(fd, offset, whence);
       break;
     }
@@ -75,6 +79,13 @@ void do_syscall(Context *c) {
     case SYS_gettimeofday: {
       struct timeval *tv = (struct timeval *)c->GPR2;
       c->GPRx = get_am_uptime(tv);
+      break;
+    }
+    case SYS_execve: {
+      char* fname = (char*)c->GPR2;
+      STRACE_LOG("[strace] syscall: SYS_execve %s\n", fname);
+      naive_uload(NULL, fname);
+      c->GPRx = 0;
       break;
     }
     default: panic("[strace] Unhandled syscall ID = %d", a[0]);

@@ -53,6 +53,11 @@ static Finfo file_table[] __attribute__((used)) = {
 
 #define FILE_NUMS sizeof(file_table) / sizeof(Finfo)
 
+char* get_fd_name(int fd) {
+  assert((fd >= 0) && (fd < FILE_NUMS));
+  return file_table[fd].name;
+}
+
 void init_fs() {
   int fb = fs_open("/dev/fb", 0, 0);
   if (fb < 0) {
@@ -88,29 +93,29 @@ size_t fs_read(int fd, void *buf, size_t len) {
     return file_table[fd].read(buf, file_table[fd].open_offset, len);
   }
 
-  if (file_table[fd].open_offset + len > file_table[fd].size) {
-    // panic("len is large than file nums");
-    return -1;
-  }
-  ramdisk_read(buf, file_table[fd].disk_offset + file_table[fd].open_offset, len);
-  file_table[fd].open_offset += len;
-  return len;
+  size_t usable_len = len;
+  usable_len = file_table[fd].open_offset + len <= file_table[fd].size ? len : file_table[fd].size - file_table[fd].open_offset;
+  int ret = ramdisk_read(buf, file_table[fd].disk_offset + file_table[fd].open_offset, usable_len);
+  file_table[fd].open_offset += ret;
+  return ret;
 }
 
 size_t fs_write(int fd, const void *buf, size_t len) {
   assert((fd >= 0) && (fd < FILE_NUMS));
 
   if (file_table[fd].write != NULL) {
-    file_table[fd].write(buf, file_table[fd].open_offset, len);
+    return file_table[fd].write(buf, file_table[fd].open_offset, len);
   }
 
-  if (file_table[fd].open_offset + len > file_table[fd].size) {
-    // panic("len is large than file nums");
-    return -1;
-  }
-  ramdisk_write(buf, file_table[fd].disk_offset + file_table[fd].open_offset, len);
-  file_table[fd].open_offset += len;
-  return len;
+  // if (file_table[fd].open_offset + len > file_table[fd].size) {
+  //   // panic("len is large than file nums");
+  //   return -1;
+  // }
+  size_t usable_len = len;
+  usable_len = file_table[fd].open_offset + len <= file_table[fd].size ? len : file_table[fd].size - file_table[fd].open_offset;
+  int ret = ramdisk_write(buf, file_table[fd].disk_offset + file_table[fd].open_offset, usable_len);
+  file_table[fd].open_offset += ret;
+  return ret;
 }
 
 /*
@@ -130,7 +135,7 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
   switch (whence) {
     case SEEK_SET:
       if (offset > file_table[fd].size) {
-        // panic("len is large than file nums");
+        panic("len is large than file nums");
         return -1;
       }
       file_table[fd].open_offset = offset;
@@ -138,7 +143,7 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
       break;
     case SEEK_CUR:
       if (file_table[fd].open_offset + offset > file_table[fd].size) {
-        // panic("len is large than file nums");
+        panic("len is large than file nums");
         return -1;
       }
       file_table[fd].open_offset += offset;
@@ -146,7 +151,7 @@ size_t fs_lseek(int fd, size_t offset, int whence) {
       break;
     case SEEK_END:
       if (file_table[fd].size < offset) {
-        // panic("len is large than file nums");
+        panic("len is large than file nums");
         return -1;
       }
       file_table[fd].open_offset = file_table[fd].size - offset;

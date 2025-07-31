@@ -47,6 +47,18 @@ void read_elf_header(Elf_Ehdr *elf_header)
   ramdisk_read(elf_header, 0, sizeof(Elf_Ehdr));
 }
 
+typedef size_t (*ReadFn) (void *buf, size_t offset, size_t len);
+typedef size_t (*WriteFn) (const void *buf, size_t offset, size_t len);
+typedef struct {
+  char *name;
+  size_t size;
+  size_t disk_offset;
+  size_t open_offset;
+  ReadFn read;
+  WriteFn write;
+} Finfo;
+extern Finfo file_table[];
+
 void read_elf_header_fd(Elf_Ehdr *elf_header, int fd)
 {
   fs_read(fd, elf_header, sizeof(Elf_Ehdr));
@@ -143,6 +155,10 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   if (fd < 0) {
     panic("could not open file %s", filename);
   }
+
+  fs_lseek(fd, 0, SEEK_SET);
+  printf("read code from %u %u %u\n", file_table[fd].open_offset, file_table[fd].disk_offset, file_table[fd].size);
+
   // 0- read the elf header
   Elf_Ehdr elf_header;
   read_elf_header_fd(&elf_header, fd);
@@ -176,7 +192,6 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
 
 void naive_uload(PCB *pcb, const char *filename) {
   uintptr_t entry = loader(pcb, filename);
-  // TODO printf not support %p for now
   Log("Jump to entry = %p", entry);
   ((void(*)())entry) ();
 }
