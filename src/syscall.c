@@ -25,7 +25,8 @@ void do_syscall(Context *c) {
   switch (a[0]) {
     case SYS_exit : {
       STRACE_LOG("[strace] syscall: SYS_exit, input:%d, output:%d\n", c->GPR2, c->GPRx);
-      halt(c->GPR2);
+      naive_uload(NULL, "/bin/menu");
+      // halt(c->GPR2);
       c->GPRx = 0;
       break;
     }

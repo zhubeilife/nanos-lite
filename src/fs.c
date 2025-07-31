@@ -81,7 +81,7 @@ int fs_open(const char *pathname, int flags, int mode) {
     }
   }
   if (index == -1) {
-    panic("can't fild file");
+    printf("can't fild file %s\n", pathname);
   }
   return index;
 }
