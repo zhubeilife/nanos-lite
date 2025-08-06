@@ -136,7 +136,7 @@ void load_program_fd(Elf_Ehdr *elf_header, Elf_Phdr ph_table[], int fd) {
   }
 }
 
-static uintptr_t loader(PCB *pcb, const char *filename) {
+uintptr_t loader(PCB *pcb, const char *filename) {
 
   // -1- open the file
   int fd = fs_open(filename, 0, 0);

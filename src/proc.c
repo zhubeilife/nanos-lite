@@ -26,9 +26,24 @@ void context_kload(PCB* pcb, void (*entry)(void *), void* arg) {
   pcb->cp = kcontext(kstack, entry, arg);
 }
 
+uintptr_t loader(PCB *pcb, const char *filename);
+
+void context_uload(PCB* pcb, const char *filename) {
+  uintptr_t entry = loader(pcb, filename);
+  if (entry == 0){
+    Log("Fail to load %s", filename);
+    panic("Fail to load %s", filename);
+    return;
+  }
+  Area kstack = {pcb->stack, pcb->stack + STACK_SIZE};
+  pcb->cp = ucontext(NULL, kstack, (void*)entry);
+  pcb->cp->GPRx = (uintptr_t)heap.end;
+}
+
 void init_proc() {
   context_kload(&pcb[0], hello_fun, (void *)1);
-  context_kload(&pcb[1], hello_fun, (void *)2);
+  // context_kload(&pcb[1], hello_fun, (void *)2);
+  context_uload(&pcb[1], "/bin/pal");
   switch_boot_pcb();
 
   Log("Initializing processes...");
