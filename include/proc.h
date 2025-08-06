@@ -16,6 +16,8 @@ typedef union {
   };
 } PCB;
 
+void context_kload(PCB* pcb, void (*entry)(void *), void* arg);
+
 extern PCB *current;
 
 #endif
