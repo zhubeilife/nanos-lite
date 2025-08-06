@@ -74,65 +74,77 @@ void context_uload(PCB* pcb, const char *filename, char *const argv[], char *con
   Area kstack = {pcb->stack, pcb->stack + STACK_SIZE};
   pcb->cp = ucontext(NULL, kstack, (void*)entry);
 
-  // deal with params
-  char* top = (char*)heap.end - 1;
-  int string_area_len = 0;
-  // argv是一个以NULL结尾的字符串数组
-  int argc = 0;
+  // Calculate total size needed
+  int argc = 0, envc = 0;
+  size_t total_string_len = 0;
+  
+  // Count argc and calculate string lengths
   if (argv != NULL) {
-    while (argv[argc]!=NULL) {
-      int len = strlen(argv[argc]) + 1;
-      string_area_len += len;
-      top -= len;
-      strcpy((char*)(top + 1), argv[argc]);
-      argc++;
-      // 刚开始想override，来暂存新的地址，但是因为是const，而且也不应该修改用户输入的参数
-      // argv[argc] = (char*)(top + 1);
-    }
-  }
-
-  int envc = 0;
-  if (envp != NULL) {
-    while (envp[envc]!=NULL) {
-      int len = strlen(envp[envc]) + 1;
-      string_area_len += len;
-      top -= len;
-      strcpy((char*)(top + 1), envp[envc]);
-      envc++;
-    }
-  }
-  *top = 0;
-
-  uintptr_t* env_top = (uintptr_t*)top - envc;
-
-  top = (char*)env_top;
-  top--;
-  *top = 0;
-
-  uintptr_t* argc_top = (uintptr_t*)top - argc;
-
-  *(argc_top - 1) = argc;
-  pcb->cp->GPRx = (uintptr_t)(argc_top - 1);
-
-  top = (char*)heap.end;
-  argc = 0;
-  if (argv != NULL) {
-    while (argv[argc]!=NULL) {
-      int len = strlen(argv[argc]) + 1;
-      top -= len;
-      argc_top[argc] = (uintptr_t)(top + 1);
+    while (argv[argc] != NULL) {
+      total_string_len += strlen(argv[argc]) + 1;
       argc++;
     }
   }
-  envc = 0;
+  
   if (envp != NULL) {
-    while (envp[envc]!=NULL) {
-      int len = strlen(envp[envc]) + 1;
-      top -= len;
-      env_top[envc] = (uintptr_t)(top + 1);
+    while (envp[envc] != NULL) {
+      total_string_len += strlen(envp[envc]) + 1;
       envc++;
     }
   }
+  
+  // Calculate total size needed for the stack frame
+  size_t frame_size = sizeof(uintptr_t) * (argc + 1) +  // argv array + NULL
+                      sizeof(uintptr_t) * (envc + 1) +  // envp array + NULL
+                      sizeof(int) +                      // argc
+                      total_string_len;                 // string data
+  
+  // Align to 8-byte boundary
+  frame_size = (frame_size + 7) & ~7;
+  
+  // Check if we have enough memory
+  if ((char*)heap.end - (char*)heap.start < frame_size) {
+    panic("Not enough memory for process arguments");
+  }
+  
+  // Start from the end of heap
+  char* top = (char*)heap.end - frame_size;
+  
+  // Ensure 8-byte alignment
+  top = (char*)((uintptr_t)top & ~7);
+  
+  // Copy strings first (from bottom to top)
+  char* string_base = top + sizeof(uintptr_t) * (argc + 1) + 
+                      sizeof(uintptr_t) * (envc + 1) + sizeof(int);
+  
+  uintptr_t* argv_ptrs = (uintptr_t*)top;
+  uintptr_t* envp_ptrs = (uintptr_t*)(top + sizeof(uintptr_t) * (argc + 1));
+  int* argc_ptr = (int*)(top + sizeof(uintptr_t) * (argc + 1) + sizeof(uintptr_t) * (envc + 1));
+  
+  // Copy argv strings
+  char* current_string = string_base;
+  for (int i = 0; i < argc; i++) {
+    int len = strlen(argv[i]) + 1;
+    strcpy(current_string, argv[i]);
+    argv_ptrs[i] = (uintptr_t)current_string;
+    current_string += len;
+  }
+  argv_ptrs[argc] = 0;  // NULL terminator
+  
+  // Copy envp strings
+  for (int i = 0; i < envc; i++) {
+    int len = strlen(envp[i]) + 1;
+    strcpy(current_string, envp[i]);
+    envp_ptrs[i] = (uintptr_t)current_string;
+    current_string += len;
+  }
+  envp_ptrs[envc] = 0;  // NULL terminator
+  
+  // Set argc
+  *argc_ptr = argc;
+  
+  // Set the stack pointer for the new context
+  pcb->cp->GPRx = (uintptr_t)argc_ptr;
 }
 
 void init_proc() {
