@@ -13,9 +13,23 @@
 size_t ramdisk_read(void *buf, size_t offset, size_t len);
 
 #if defined(__ISA_NATIVE__)
-# define EXPECT_TYPE EM_ARM
+#ifdef __x86_64__
+# define EXPECT_TYPE EM_X86_64
+#elif __aarch64__
+# define EXPECT_TYPE EM_AARCH64
+#else
+#error Unsupported ISA
+#endif
 #elif defined(__riscv)
 # define EXPECT_TYPE EM_RISCV
+#elif defined(__ISA_AM_NATIVE__)
+#ifdef __x86_64__
+# define EXPECT_TYPE EM_X86_64
+#elif __aarch64__
+# define EXPECT_TYPE EM_AARCH64
+#else
+#error Unsupported ISA
+#endif
 #else
 #error Unsupported ISA
 #endif
