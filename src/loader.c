@@ -112,12 +112,12 @@ void print_segment_headers(Elf_Ehdr *elf_header, Elf_Phdr ph_table[])
   printf("========================================\n");
 
   for(uint32_t i = 0; i < elf_header->e_phnum; i++) {
-    printf("%u ", ph_table[i].p_type);
-    printf("%u ", ph_table[i].p_offset);
-    printf("%u ", ph_table[i].p_vaddr);
-    printf("%u ", ph_table[i].p_paddr);
-    printf("%u ", ph_table[i].p_filesz);
-    printf("%u ", ph_table[i].p_memsz);
+    printf("%x ", ph_table[i].p_type);
+    printf("%x ", ph_table[i].p_offset);
+    printf("%x ", ph_table[i].p_vaddr);
+    printf("%x ", ph_table[i].p_paddr);
+    printf("%x ", ph_table[i].p_filesz);
+    printf("%x ", ph_table[i].p_memsz);
     printf("%u ", ph_table[i].p_flags);
     printf("%u ", ph_table[i].p_align);
     printf("\n");
@@ -143,8 +143,10 @@ void load_program_fd(Elf_Ehdr *elf_header, Elf_Phdr ph_table[], int fd) {
     if (ph_table[i].p_type == PT_LOAD) {
       // [VirtAddr, VirtAddr + MemSiz)
       fs_lseek(fd, ph_table[i].p_offset, SEEK_SET);
+      Log("Load [%x, %x]", ph_table[i].p_vaddr, ph_table[i].p_vaddr + ph_table[i].p_filesz);
       fs_read(fd, (void*)ph_table[i].p_vaddr, ph_table[i].p_filesz);
       // [VirtAddr + FileSiz, VirtAddr + MemSiz)
+      Log("Memset [%x, %x]", ph_table[i].p_vaddr + ph_table[i].p_filesz, ph_table[i].p_vaddr + ph_table[i].p_memsz);
       memset((void*)(ph_table[i].p_vaddr + ph_table[i].p_filesz) , 0, ph_table[i].p_memsz - ph_table[i].p_filesz);
     }
   }

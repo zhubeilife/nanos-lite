@@ -65,7 +65,9 @@ uintptr_t loader(PCB *pcb, const char *filename);
 |               |
  */
 void context_uload(PCB* pcb, const char *filename, char *const argv[], char *const envp[]) {
+  Log("Start to load %s", filename);
   uintptr_t entry = loader(pcb, filename);
+
   if (entry == 0){
     Log("Fail to load %s", filename);
     panic("Fail to load %s", filename);
@@ -92,59 +94,67 @@ void context_uload(PCB* pcb, const char *filename, char *const argv[], char *con
       envc++;
     }
   }
-  
+
   // Calculate total size needed for the stack frame
-  size_t frame_size = sizeof(uintptr_t) * (argc + 1) +  // argv array + NULL
-                      sizeof(uintptr_t) * (envc + 1) +  // envp array + NULL
-                      sizeof(int) +                      // argc
-                      total_string_len;                 // string data
-  
-  // Align to 8-byte boundary
-  frame_size = (frame_size + 7) & ~7;
-  
+  // Layout (low -> high):
+  // [argc (1 slot of uintptr_t)] [argv pointers ... NULL] [envp pointers ... NULL] [strings]
+  size_t frame_size = sizeof(uintptr_t) * (1                  /* argc slot */
+                                          + argc              /* argv (no NULL here) */
+                                          + (envc + 1))       /* envp + NULL */
+                       + total_string_len;                    /* string data */
+
+  // Align to sizeof(uintptr_t)
+  const size_t align_unit = sizeof(uintptr_t);
+  frame_size = (frame_size + align_unit - 1) & ~(align_unit - 1);
+
+  Log("frame_size:%d, total_string_len:%d", frame_size, total_string_len);
+
   // Check if we have enough memory
   if ((char*)heap.end - (char*)heap.start < frame_size) {
     panic("Not enough memory for process arguments");
   }
-  
-  // Start from the end of heap
-  char* top = (char*)heap.end - frame_size;
-  
-  // Ensure 8-byte alignment
-  top = (char*)((uintptr_t)top & ~7);
-  
-  // Copy strings first (from bottom to top)
-  char* string_base = top + sizeof(uintptr_t) * (argc + 1) + 
-                      sizeof(uintptr_t) * (envc + 1) + sizeof(int);
-  
-  uintptr_t* argv_ptrs = (uintptr_t*)top;
-  uintptr_t* envp_ptrs = (uintptr_t*)(top + sizeof(uintptr_t) * (argc + 1));
-  int* argc_ptr = (int*)(top + sizeof(uintptr_t) * (argc + 1) + sizeof(uintptr_t) * (envc + 1));
-  
-  // Copy argv strings
+
+  // Place the frame at the top of heap, aligned down
+  char* top = (char*)(((uintptr_t)heap.end - frame_size) & ~((uintptr_t)align_unit - 1));
+  Log("top: %p", top);
+
+  // Compute pointers for each region
+  uintptr_t *args_base = (uintptr_t *)top;              // points to argc slot
+  uintptr_t *argv_ptrs = args_base + 1;                 // immediately after argc
+  uintptr_t *envp_ptrs = argv_ptrs + argc;              // directly after argv (no NULL)
+  char *string_base = (char *)(envp_ptrs + (envc + 1)); // after envp and its NULL
+
+  Log("argc_ptr:%p argv_ptr:%p envp_ptr:%p string_base:%p", args_base, argv_ptrs, envp_ptrs, string_base);
+
+  // Copy argv strings and fill argv pointers
   char* current_string = string_base;
   for (int i = 0; i < argc; i++) {
-    int len = strlen(argv[i]) + 1;
+    size_t len = strlen(argv[i]) + 1;
     strcpy(current_string, argv[i]);
     argv_ptrs[i] = (uintptr_t)current_string;
     current_string += len;
   }
-  argv_ptrs[argc] = 0;  // NULL terminator
-  
-  // Copy envp strings
+  // Copy envp strings and fill envp pointers
   for (int i = 0; i < envc; i++) {
-    int len = strlen(envp[i]) + 1;
+    size_t len = strlen(envp[i]) + 1;
     strcpy(current_string, envp[i]);
     envp_ptrs[i] = (uintptr_t)current_string;
     current_string += len;
   }
   envp_ptrs[envc] = 0;  // NULL terminator
-  
-  // Set argc
-  *argc_ptr = argc;
-  
-  // Set the stack pointer for the new context
-  pcb->cp->GPRx = (uintptr_t)argc_ptr;
+
+  // Set argc in the first slot (pointer-sized)
+  args_base[0] = (uintptr_t)argc;
+
+  // Pass args base in a0; user _start will set sp from a0 and call call_main
+  pcb->cp->GPRx = (uintptr_t)args_base;
+
+  Log("argc size: %d, env size: %d", argc, envc);
+  Log("args base %p, heap end %p", args_base, heap.end);
+  for (int i = 0; i < argc; i++) {
+    Log("argv[%d](addr: %p): %s", i, (void*)argv_ptrs[i], (char*)argv_ptrs[i]);
+  }
+  Log("End params load");
 }
 
 void init_proc() {
@@ -152,7 +162,7 @@ void init_proc() {
   context_kload(&pcb[0], hello_fun, (void *)1);
   // context_kload(&pcb[1], hello_fun, (void *)2);
   // char * pal_argv[] = {"--skip"};
-  // context_uload(&pcb[1], "/bin/pal", pal_argv, NULL);
+  // context_uload(&pcb[1], "/bin/pal", pal_argv, NULLULL);
   char *argv[] = {"/bin/pal", "--skip", NULL};
   context_uload(&pcb[1], argv[0], argv, envp);
   switch_boot_pcb();
