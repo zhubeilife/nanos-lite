@@ -2,8 +2,12 @@
 
 static void *pf = NULL;
 
+
+// 通过一个pf指针来管理堆区, 用于分配一段大小为nr_page * 4KB的连续内存区域, 并返回这段区域的首地址
 void* new_page(size_t nr_page) {
-  return NULL;
+  void *old_pf = pf;
+  pf += nr_page*PGSIZE;
+  return old_pf;
 }
 
 #ifdef HAS_VME

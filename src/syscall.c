@@ -18,6 +18,10 @@ int mm_brk(uintptr_t brk);
 void naive_uload(PCB *pcb, const char *filename);
 char* get_fd_name(int fd);
 
+void context_uload(PCB* pcb, const char *filename, char *const argv[], char *const envp[]);
+void switch_boot_pcb();
+extern PCB *user_pcb;
+
 void do_syscall(Context *c) {
   uintptr_t a[4];
   a[0] = c->GPR1;
@@ -31,16 +35,16 @@ void do_syscall(Context *c) {
       break;
     }
     case SYS_yield: {
-      STRACE_LOG("[strace] syscall: SYS_yield, input:N/A, output:%d\n", c->GPRx);
       yield();
       c->GPRx = 0;
+      STRACE_LOG("[strace] syscall: SYS_yield, input:N/A, output:%d\n", c->GPRx);
       break;
     }
     case SYS_write: {
-      STRACE_LOG("[strace] syscall: SYS_wirte %d %d\n", fd, count);
       int fd = c->GPR2;
       void* buf = (void*)c->GPR3;
       size_t count = c->GPR4;
+      STRACE_LOG("[strace] syscall: SYS_wirte %d %d\n", fd, count);
       c->GPRx = fs_write(fd, buf, count);
       break;
     }
@@ -84,8 +88,15 @@ void do_syscall(Context *c) {
     }
     case SYS_execve: {
       char* fname = (char*)c->GPR2;
-      STRACE_LOG("[strace] syscall: SYS_execve %s\n", fname);
-      naive_uload(NULL, fname);
+      char** argv = (char**)c->GPR3;
+      char** envp = (char**)c->GPR4;
+      STRACE_LOG("[strace] syscall: SYS_execve %s argv:%p envp:%p\n", fname, argv, envp);
+      // Log("[strace] syscall: SYS_execve %s argv:%p envp:%p\n", fname, argv, envp);
+      context_uload(user_pcb, fname, argv, envp);
+      // 为了结束A的执行流, 我们可以在创建B的上下文之后, 通过switch_boot_pcb()修改当前的current指针, 然后调用yield()来强制触发进程调度. 这样以后, A的执行流就不会再被调度, 等到下一次调度的时候, 就可以恢复并执行B了.
+      switch_boot_pcb();
+      yield();
+      // naive_uload(NULL, fname);
       c->GPRx = 0;
       break;
     }

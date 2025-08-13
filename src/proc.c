@@ -5,6 +5,7 @@
 static PCB pcb[MAX_NR_PROC] __attribute__((used)) = {};
 static PCB pcb_boot = {};
 PCB *current = NULL;
+PCB *user_pcb = &pcb[1];
 
 void naive_uload(PCB *pcb, const char *filename);
 
@@ -15,8 +16,8 @@ void switch_boot_pcb() {
 void hello_fun(void *arg) {
   int j = 1;
   while (1) {
-    Log("Hello World from Nanos-lite with arg '%d' for the %dth time!", (int)arg, j);
-    j ++;
+    Log("hello_fun arg: '%d', %d time!", (int)arg, j);
+    j++;
     yield();
   }
 }
@@ -27,7 +28,6 @@ void context_kload(PCB* pcb, void (*entry)(void *), void* arg) {
 }
 
 uintptr_t loader(PCB *pcb, const char *filename);
-
 
 /*
 |               |
@@ -65,35 +65,29 @@ uintptr_t loader(PCB *pcb, const char *filename);
 |               |
  */
 void context_uload(PCB* pcb, const char *filename, char *const argv[], char *const envp[]) {
-  Log("Start to load %s", filename);
-  uintptr_t entry = loader(pcb, filename);
-
-  if (entry == 0){
-    Log("Fail to load %s", filename);
-    panic("Fail to load %s", filename);
-    return;
-  }
-  Area kstack = {pcb->stack, pcb->stack + STACK_SIZE};
-  pcb->cp = ucontext(NULL, kstack, (void*)entry);
+  Log("context_uload: execve %s argv:%p envp:%p\n", filename, argv, envp);
 
   // Calculate total size needed
   int argc = 0, envc = 0;
   size_t total_string_len = 0;
-  
+
   // Count argc and calculate string lengths
   if (argv != NULL) {
     while (argv[argc] != NULL) {
       total_string_len += strlen(argv[argc]) + 1;
+      // Log("argv[%d](addr: %p): %s", argc, argv[argc], argv[argc]);
       argc++;
     }
   }
-  
+
   if (envp != NULL) {
     while (envp[envc] != NULL) {
       total_string_len += strlen(envp[envc]) + 1;
+      // Log("envp[%d](addr: %p): %s", envc, envp[envc], envp[envc]);
       envc++;
     }
   }
+  Log("argc size: %d, env size: %d", argc, envc);
 
   // Calculate total size needed for the stack frame
   // Layout (low -> high):
@@ -109,13 +103,19 @@ void context_uload(PCB* pcb, const char *filename, char *const argv[], char *con
 
   Log("frame_size:%d, total_string_len:%d", frame_size, total_string_len);
 
+  // get user stack
+  void *user_start = new_page(8);
+  void *user_end = user_start + 8*PGSIZE;
+  Log("Heap area [%p ~ %p]", heap.start, heap.end);
+  Log("User Heap area [%p ~ %p]", user_start, user_end);
+
   // Check if we have enough memory
-  if ((char*)heap.end - (char*)heap.start < frame_size) {
+  if ((char*)user_end - (char*)user_start < frame_size) {
     panic("Not enough memory for process arguments");
   }
 
   // Place the frame at the top of heap, aligned down
-  char* top = (char*)(((uintptr_t)heap.end - frame_size) & ~((uintptr_t)align_unit - 1));
+  char* top = (char*)(((uintptr_t)user_end - frame_size) & ~((uintptr_t)align_unit - 1));
   Log("top: %p", top);
 
   // Compute pointers for each region
@@ -146,14 +146,23 @@ void context_uload(PCB* pcb, const char *filename, char *const argv[], char *con
   // Set argc in the first slot (pointer-sized)
   args_base[0] = (uintptr_t)argc;
 
+  // Log("args base %p, user_end %p", args_base, user_end);
+  // for (int i = 0; i < argc; i++) {
+  //   Log("argv[%d](addr: %p): %s", i, (void*)argv_ptrs[i], (char*)argv_ptrs[i]);
+  // }
+
+  uintptr_t entry = loader(pcb, filename);
+
+  if (entry == 0){
+    Log("Fail to load %s", filename);
+    panic("Fail to load %s", filename);
+    return;
+  }
+  Area kstack = {pcb->stack, pcb->stack + STACK_SIZE};
+  pcb->cp = ucontext(NULL, kstack, (void*)entry);
   // Pass args base in a0; user _start will set sp from a0 and call call_main
   pcb->cp->GPRx = (uintptr_t)args_base;
 
-  Log("argc size: %d, env size: %d", argc, envc);
-  Log("args base %p, heap end %p", args_base, heap.end);
-  for (int i = 0; i < argc; i++) {
-    Log("argv[%d](addr: %p): %s", i, (void*)argv_ptrs[i], (char*)argv_ptrs[i]);
-  }
   Log("End params load");
 }
 
@@ -161,9 +170,10 @@ void init_proc() {
   char *envp[] = {NULL};
   context_kload(&pcb[0], hello_fun, (void *)1);
   // context_kload(&pcb[1], hello_fun, (void *)2);
-  // char * pal_argv[] = {"--skip"};
-  // context_uload(&pcb[1], "/bin/pal", pal_argv, NULLULL);
-  char *argv[] = {"/bin/pal", "--skip", NULL};
+  // char *argv[] = {"/bin/pal", "--skip", NULL};
+  // char *argv[] = {"/bin/exec-test", "hello", NULL};
+  // char *argv[] = {"/bin/menu", NULL, NULL};
+  char *argv[] = {"/bin/nterm", NULL, NULL};
   context_uload(&pcb[1], argv[0], argv, envp);
   switch_boot_pcb();
 
