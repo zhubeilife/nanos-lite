@@ -15,9 +15,13 @@ void switch_boot_pcb() {
 
 void hello_fun(void *arg) {
   int j = 1;
+  int index = 0;
   while (1) {
-    Log("hello_fun arg: '%d', %d time!", (int)arg, j);
-    j++;
+    if (index % 1000 == 0) {
+      Log("hello_fun arg: '%d', %d time!", (int)arg, j);
+      j++;
+    }
+    index++;
     yield();
   }
 }
@@ -174,6 +178,8 @@ void init_proc() {
   // char *argv[] = {"/bin/exec-test", "hello", NULL};
   // char *argv[] = {"/bin/menu", NULL, NULL};
   char *argv[] = {"/bin/nterm", NULL, NULL};
+  // char *argv[] = {"/bin/busybox", NULL, NULL};
+  // char *argv[] = {"/usr/bin/basename", "/h/a/ddfdf", NULL};
   context_uload(&pcb[1], argv[0], argv, envp);
   switch_boot_pcb();
 

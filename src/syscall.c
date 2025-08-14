@@ -29,8 +29,11 @@ void do_syscall(Context *c) {
   switch (a[0]) {
     case SYS_exit : {
       STRACE_LOG("[strace] syscall: SYS_exit, input:%d, output:%d\n", c->GPR2, c->GPRx);
-      naive_uload(NULL, "/bin/menu");
+      // naive_uload(NULL, "/bin/menu");
       // halt(c->GPR2);
+      context_uload(user_pcb, "/bin/nterm", NULL, NULL);
+      switch_boot_pcb();
+      yield();
       c->GPRx = 0;
       break;
     }
@@ -91,7 +94,13 @@ void do_syscall(Context *c) {
       char** argv = (char**)c->GPR3;
       char** envp = (char**)c->GPR4;
       STRACE_LOG("[strace] syscall: SYS_execve %s argv:%p envp:%p\n", fname, argv, envp);
-      // Log("[strace] syscall: SYS_execve %s argv:%p envp:%p\n", fname, argv, envp);
+      int ret = fs_open(fname, 0, 0);
+      if (ret < 0) {
+        Log("Fail to open %s", fname);
+        c->GPRx = -2;
+        break;
+      }
+      Log("[strace] syscall: SYS_execve %s argv:%p envp:%p\n", fname, argv, envp);
       context_uload(user_pcb, fname, argv, envp);
       // 为了结束A的执行流, 我们可以在创建B的上下文之后, 通过switch_boot_pcb()修改当前的current指针, 然后调用yield()来强制触发进程调度. 这样以后, A的执行流就不会再被调度, 等到下一次调度的时候, 就可以恢复并执行B了.
       switch_boot_pcb();
